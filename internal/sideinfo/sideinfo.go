@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hajimehoshi/go-mp3/internal/bits"
-	"github.com/hajimehoshi/go-mp3/internal/consts"
-	"github.com/hajimehoshi/go-mp3/internal/frameheader"
+	"github.com/imcarsen/go-mp3/internal/bits"
+	"github.com/imcarsen/go-mp3/internal/consts"
+	"github.com/imcarsen/go-mp3/internal/frameheader"
 )
 
 type FullReader interface {
@@ -69,7 +69,7 @@ func Read(source FullReader, header frameheader.FrameHeader) (*SideInfo, error) 
 		return nil, err
 	}
 	if framesize > 2000 {
-		return nil, fmt.Errorf("mp3: framesize = %d\n", framesize)
+		return nil, fmt.Errorf("mp3: framesize = %d", framesize)
 	}
 	sideinfo_size := header.SideInfoSize()
 
@@ -84,7 +84,7 @@ func Read(source FullReader, header frameheader.FrameHeader) (*SideInfo, error) 
 	n, err := source.ReadFull(buf)
 	if n < sideinfo_size {
 		if err == io.EOF {
-			return nil, &consts.UnexpectedEOF{"sideinfo.Read"}
+			return nil, &consts.UnexpectedEOF{At: "sideinfo.Read"}
 		}
 		return nil, fmt.Errorf("mp3: couldn't read sideinfo %d bytes: %v", sideinfo_size, err)
 	}

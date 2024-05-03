@@ -18,9 +18,9 @@ import (
 	"errors"
 	"io"
 
-	"github.com/hajimehoshi/go-mp3/internal/consts"
-	"github.com/hajimehoshi/go-mp3/internal/frame"
-	"github.com/hajimehoshi/go-mp3/internal/frameheader"
+	"github.com/imcarsen/go-mp3/internal/consts"
+	"github.com/imcarsen/go-mp3/internal/frame"
+	"github.com/imcarsen/go-mp3/internal/frameheader"
 )
 
 // A Decoder is a MP3-decoded stream.
@@ -75,50 +75,54 @@ func (d *Decoder) Read(buf []byte) (int, error) {
 // channels, 2 bytes each). Be careful to seek to an offset that is divisible by
 // 4 if you want to read at full sample boundaries.
 func (d *Decoder) Seek(offset int64, whence int) (int64, error) {
-	if offset == 0 && whence == io.SeekCurrent {
-		// Handle the special case of asking for the current position specially.
-		return d.pos, nil
-	}
-
-	npos := int64(0)
+	var newPosition int64
 	switch whence {
 	case io.SeekStart:
-		npos = offset
+		newPosition = offset
 	case io.SeekCurrent:
-		npos = d.pos + offset
+		newPosition = d.pos + offset
 	case io.SeekEnd:
-		npos = d.Length() + offset
+		newPosition = d.Length() + offset
 	default:
 		return 0, errors.New("mp3: invalid whence")
 	}
-	d.pos = npos
+
+	// Ensure the new position is within bounds
+	if newPosition < 0 {
+		newPosition = 0
+	} else if newPosition > d.Length() {
+		newPosition = d.Length()
+	}
+
+	// Calculate the frame index and byte offset
+	frameIndex := newPosition / int64(d.bytesPerFrame)
+	byteOffset := newPosition % int64(d.bytesPerFrame)
+
+	// Seek to the start of the frame
+	if _, err := d.source.Seek(d.frameStarts[frameIndex], io.SeekStart); err != nil {
+		return 0, err
+	}
+
+	// Discard any buffered data
 	d.buf = nil
 	d.frame = nil
-	f := d.pos / d.bytesPerFrame
-	// If the frame is not first, read the previous ahead of reading that
-	// because the previous frame can affect the targeted frame.
-	if f > 0 {
-		f--
-		if _, err := d.source.Seek(d.frameStarts[f], 0); err != nil {
-			return 0, err
-		}
+
+	// Read frames until reaching the desired position
+	for i := int64(0); i < frameIndex; i++ {
 		if err := d.readFrame(); err != nil {
 			return 0, err
 		}
-		if err := d.readFrame(); err != nil {
-			return 0, err
-		}
-		d.buf = d.buf[d.bytesPerFrame+(d.pos%d.bytesPerFrame):]
-	} else {
-		if _, err := d.source.Seek(d.frameStarts[f], 0); err != nil {
-			return 0, err
-		}
-		if err := d.readFrame(); err != nil {
-			return 0, err
-		}
-		d.buf = d.buf[d.pos:]
 	}
-	return npos, nil
+
+	// Skip bytes within the frame
+	if _, err := io.CopyN(io.Discard, d.source.reader, byteOffset); err != nil {
+		return 0, err
+	}
+
+	// Update the position
+	d.pos = newPosition
+
+	return d.pos, nil
 }
 
 // SampleRate returns the sample rate like 44100.

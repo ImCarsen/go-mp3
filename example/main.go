@@ -20,9 +20,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/hajimehoshi/oto/v2"
-
-	"github.com/hajimehoshi/go-mp3"
+	"github.com/ebitengine/oto/v3"
+	"github.com/imcarsen/go-mp3"
 )
 
 func run() error {
@@ -37,11 +36,7 @@ func run() error {
 		return err
 	}
 
-	c, ready, err := oto.NewContext(d.SampleRate(), 2, 2)
-	if err != nil {
-		return err
-	}
-	<-ready
+	c := CreateContext(d.SampleRate())
 
 	p := c.NewPlayer(d)
 	defer p.Close()
@@ -62,4 +57,20 @@ func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func CreateContext(sampleRate int) *oto.Context {
+	op := &oto.NewContextOptions{
+		SampleRate:   sampleRate,              // Match the given sample rate
+		ChannelCount: 2,                       // Stereo
+		Format:       oto.FormatSignedInt16LE, // Format of the source. go-mp3's format is signed 16bit integers.
+	}
+
+	otoCtx, readyChan, err := oto.NewContext(op)
+	if err != nil {
+		panic("oto.NewContext failed: " + err.Error())
+	}
+
+	<-readyChan
+	return otoCtx
 }

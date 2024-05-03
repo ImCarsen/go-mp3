@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/hajimehoshi/go-mp3/internal/bits"
-	"github.com/hajimehoshi/go-mp3/internal/consts"
-	"github.com/hajimehoshi/go-mp3/internal/frameheader"
-	"github.com/hajimehoshi/go-mp3/internal/sideinfo"
+	"github.com/imcarsen/go-mp3/internal/bits"
+	"github.com/imcarsen/go-mp3/internal/consts"
+	"github.com/imcarsen/go-mp3/internal/frameheader"
+	"github.com/imcarsen/go-mp3/internal/sideinfo"
 )
 
 type FullReader interface {
@@ -281,7 +281,7 @@ func read(source FullReader, prev *bits.Bits, size int, offset int) (*bits.Bits,
 		buf := make([]byte, size)
 		if n, err := source.ReadFull(buf); n < size {
 			if err == io.EOF {
-				return nil, &consts.UnexpectedEOF{"maindata.Read (1)"}
+				return nil, &consts.UnexpectedEOF{At: "maindata.Read (1)"}
 			}
 			return nil, err
 		}
@@ -297,7 +297,7 @@ func read(source FullReader, prev *bits.Bits, size int, offset int) (*bits.Bits,
 	buf := make([]byte, size)
 	if n, err := source.ReadFull(buf); n < size {
 		if err == io.EOF {
-			return nil, &consts.UnexpectedEOF{"maindata.Read (2)"}
+			return nil, &consts.UnexpectedEOF{At: "maindata.Read (2)"}
 		}
 		return nil, err
 	}

@@ -19,12 +19,12 @@ import (
 	"io"
 	"math"
 
-	"github.com/hajimehoshi/go-mp3/internal/bits"
-	"github.com/hajimehoshi/go-mp3/internal/consts"
-	"github.com/hajimehoshi/go-mp3/internal/frameheader"
-	"github.com/hajimehoshi/go-mp3/internal/imdct"
-	"github.com/hajimehoshi/go-mp3/internal/maindata"
-	"github.com/hajimehoshi/go-mp3/internal/sideinfo"
+	"github.com/imcarsen/go-mp3/internal/bits"
+	"github.com/imcarsen/go-mp3/internal/consts"
+	"github.com/imcarsen/go-mp3/internal/frameheader"
+	"github.com/imcarsen/go-mp3/internal/imdct"
+	"github.com/imcarsen/go-mp3/internal/maindata"
+	"github.com/imcarsen/go-mp3/internal/sideinfo"
 )
 
 var (
@@ -56,7 +56,7 @@ func readCRC(source FullReader) error {
 	buf := make([]byte, 2)
 	if n, err := source.ReadFull(buf); n < 2 {
 		if err == io.EOF {
-			return &consts.UnexpectedEOF{"readCRC"}
+			return &consts.UnexpectedEOF{At: "readCRC"}
 		}
 		return fmt.Errorf("mp3: error at readCRC: %v", err)
 	}
