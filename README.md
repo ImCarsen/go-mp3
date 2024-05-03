@@ -1,9 +1,14 @@
-# This project is no longer maintained.
+# <p align=center>go-mp3</p>
+> This is a slightly modified version of [hajimehoshi/go-mp3](https://github.com/hajimehoshi/go-mp3). <br/>An MP3 decoder in pure Go based on [PDMP3](https://github.com/technosaurus/PDMP3). 
 
-# go-mp3
+[![Go Reference](https://pkg.go.dev/badge/github.com/imcarsen/go-mp3.svg)](https://pkg.go.dev/github.com/imcarsen/go-mp3) 
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/hajimehoshi/go-mp3.svg)](https://pkg.go.dev/github.com/hajimehoshi/go-mp3) 
+## Changes and reasoning
+hajimehoshi's go-mp3 is amazing, but I had some issues with the seek functionality.
 
-An MP3 decoder in pure Go based on [PDMP3](https://github.com/technosaurus/PDMP3).
+Changes made:
+- Replace the Seek function with one that works within my application.
+- Update to Go version 1.22
 
-[Slide at golang.tokyo #11](https://docs.google.com/presentation/d/e/2PACX-1vTTXf-LWNRvMVGQ7GI4Wh8EKohot_9CMtlF4dswpYGpuYKOek5NeNP-_QZnNcRFZp9Cwm0pCcykjqDN/pub?start=false&loop=false&delayms=3000)
+## Will I actively maintain this?
+Kind of. If people have PRs or issues, I may be willing to look at/into them. But I can't promise anything.
