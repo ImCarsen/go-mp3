@@ -17,6 +17,7 @@ package mp3
 import (
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/imcarsen/go-mp3/internal/consts"
 	"github.com/imcarsen/go-mp3/internal/frame"
@@ -36,6 +37,7 @@ type Decoder struct {
 	pos           int64
 	bytesPerFrame int64
 	cb            func()
+	mux           sync.Mutex
 }
 
 func (d *Decoder) readFrame() error {
@@ -57,6 +59,8 @@ func (d *Decoder) readFrame() error {
 
 // Read is io.Reader's Read.
 func (d *Decoder) Read(buf []byte) (int, error) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
 	for len(d.buf) == 0 {
 		if err := d.readFrame(); err != nil {
 			if err == io.EOF {
@@ -106,6 +110,11 @@ func (d *Decoder) Seek(offset int64, whence int) (int64, error) {
 	default:
 		return 0, errors.New("mp3: invalid whence")
 	}
+
+	// Don't allow reading while seeking
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
 	d.pos = npos
 	d.buf = nil
 	d.frame = nil
