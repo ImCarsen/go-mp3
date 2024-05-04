@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -50,6 +51,9 @@ func run() error {
 		}
 	}
 
+	// seconds := 40
+	// SeekToSeconds(seconds)
+
 	return nil
 }
 
@@ -73,4 +77,23 @@ func CreateContext(sampleRate int) *oto.Context {
 
 	<-readyChan
 	return otoCtx
+}
+
+func SeekToSeconds(p *oto.Player, d *mp3.Decoder, seconds int) (int64, error) {
+	// Get the total length of the audio in bytes
+	totalLength := d.Length()
+	// Calculate the duration of the audio in seconds
+	duration := float64(totalLength) / float64(d.SampleRate()) / float64(2*2) // 2 bytes per sample
+	// Calculate the bitrate in bits per second
+	bitrate := int(float64(totalLength) * 8 / duration)
+	// Calculate the byte offset for the desired position in seconds
+	byteOffset := int64(float64(seconds) * float64(bitrate) / 8)
+
+	// Seek to the calculated byte offset
+	newPosition, err := p.Seek(byteOffset, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+
+	return newPosition, nil
 }

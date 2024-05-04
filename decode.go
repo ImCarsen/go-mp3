@@ -35,6 +35,7 @@ type Decoder struct {
 	frame         *frame.Frame
 	pos           int64
 	bytesPerFrame int64
+	cb            func()
 }
 
 func (d *Decoder) readFrame() error {
@@ -58,6 +59,9 @@ func (d *Decoder) readFrame() error {
 func (d *Decoder) Read(buf []byte) (int, error) {
 	for len(d.buf) == 0 {
 		if err := d.readFrame(); err != nil {
+			if err == io.EOF {
+				d.Callback() // EOF Callback
+			}
 			return 0, err
 		}
 	}
@@ -65,6 +69,17 @@ func (d *Decoder) Read(buf []byte) (int, error) {
 	d.buf = d.buf[n:]
 	d.pos += int64(n)
 	return n, nil
+}
+
+// Called when the decoder reachs EOF
+func (d *Decoder) Callback() {
+	if d.cb != nil {
+		d.cb()
+	}
+}
+
+func (d *Decoder) SetCallback(callback func()) {
+	d.cb = callback
 }
 
 // Seek is io.Seeker's Seek.
@@ -75,54 +90,50 @@ func (d *Decoder) Read(buf []byte) (int, error) {
 // channels, 2 bytes each). Be careful to seek to an offset that is divisible by
 // 4 if you want to read at full sample boundaries.
 func (d *Decoder) Seek(offset int64, whence int) (int64, error) {
-	var newPosition int64
+	if offset == 0 && whence == io.SeekCurrent {
+		// Handle the special case of asking for the current position specially.
+		return d.pos, nil
+	}
+
+	npos := int64(0)
 	switch whence {
 	case io.SeekStart:
-		newPosition = offset
+		npos = offset
 	case io.SeekCurrent:
-		newPosition = d.pos + offset
+		npos = d.pos + offset
 	case io.SeekEnd:
-		newPosition = d.Length() + offset
+		npos = d.Length() + offset
 	default:
 		return 0, errors.New("mp3: invalid whence")
 	}
-
-	// Ensure the new position is within bounds
-	if newPosition < 0 {
-		newPosition = 0
-	} else if newPosition > d.Length() {
-		newPosition = d.Length()
-	}
-
-	// Calculate the frame index and byte offset
-	frameIndex := newPosition / int64(d.bytesPerFrame)
-	byteOffset := newPosition % int64(d.bytesPerFrame)
-
-	// Seek to the start of the frame
-	if _, err := d.source.Seek(d.frameStarts[frameIndex], io.SeekStart); err != nil {
-		return 0, err
-	}
-
-	// Discard any buffered data
+	d.pos = npos
 	d.buf = nil
 	d.frame = nil
-
-	// Read frames until reaching the desired position
-	for i := int64(0); i < frameIndex; i++ {
+	f := d.pos / d.bytesPerFrame
+	// If the frame is not first, read the previous ahead of reading that
+	// because the previous frame can affect the targeted frame.
+	if f > 0 {
+		f--
+		if _, err := d.source.Seek(d.frameStarts[f], 0); err != nil {
+			return 0, err
+		}
 		if err := d.readFrame(); err != nil {
 			return 0, err
 		}
+		if err := d.readFrame(); err != nil {
+			return 0, err
+		}
+		d.buf = d.buf[min(d.bytesPerFrame+(d.pos%d.bytesPerFrame), int64(len(d.buf))):]
+	} else {
+		if _, err := d.source.Seek(d.frameStarts[f], 0); err != nil {
+			return 0, err
+		}
+		if err := d.readFrame(); err != nil {
+			return 0, err
+		}
+		d.buf = d.buf[d.pos:]
 	}
-
-	// Skip bytes within the frame
-	if _, err := io.CopyN(io.Discard, d.source.reader, byteOffset); err != nil {
-		return 0, err
-	}
-
-	// Update the position
-	d.pos = newPosition
-
-	return d.pos, nil
+	return npos, nil
 }
 
 // SampleRate returns the sample rate like 44100.
@@ -200,6 +211,12 @@ func (d *Decoder) Length() int64 {
 	return d.length
 }
 
+// Exposes how many bytes are in a single frame.
+// Credit to sukus21/go-mp3.
+func (d *Decoder) BytesPerFrame() int64 {
+	return d.bytesPerFrame
+}
+
 // NewDecoder decodes the given io.Reader and returns a decoded stream.
 //
 // The stream is always formatted as 16bit (little endian) 2 channels
@@ -212,6 +229,42 @@ func NewDecoder(r io.Reader) (*Decoder, error) {
 	d := &Decoder{
 		source: s,
 		length: invalidLength,
+	}
+
+	if err := s.skipTags(); err != nil {
+		return nil, err
+	}
+	// TODO: Is readFrame here really needed?
+	if err := d.readFrame(); err != nil {
+		return nil, err
+	}
+	freq, err := d.frame.SamplingFrequency()
+	if err != nil {
+		return nil, err
+	}
+	d.sampleRate = freq
+
+	if err := d.ensureFrameStartsAndLength(); err != nil {
+		return nil, err
+	}
+
+	return d, nil
+}
+
+// NewDecoderCallback decodes the given io.Reader and returns a decoded stream.
+// It also registers the callback for the decoder
+//
+// The stream is always formatted as 16bit (little endian) 2 channels
+// even if the source is single channel MP3.
+// Thus, a sample always consists of 4 bytes.
+func NewDecoderCallback(r io.Reader, callback func()) (*Decoder, error) {
+	s := &source{
+		reader: r,
+	}
+	d := &Decoder{
+		source: s,
+		length: invalidLength,
+		cb:     callback,
 	}
 
 	if err := s.skipTags(); err != nil {
